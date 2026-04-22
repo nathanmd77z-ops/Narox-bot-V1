@@ -32,7 +32,8 @@ TICKET_TYPES = {
         "description": "Aide technique",
         "prefix": "support",
         "color": 0x3498DB,
-        "role_id": SUPPORT_ROLE_ID
+        "role_id": SUPPORT_ROLE_ID,
+        "category_id": SUPPORT_CATEGORY_ID
     },
     "achat": {
         "label": "Achat",
@@ -40,7 +41,8 @@ TICKET_TYPES = {
         "description": "Question achat",
         "prefix": "achat",
         "color": 0x2ECC71,
-        "role_id": ACHAT_ROLE_ID
+        "role_id": ACHAT_ROLE_ID,
+        "category_id": ACHAT_CATEGORY_ID
     },
     "partenariat": {
         "label": "Partenariat",
@@ -48,7 +50,8 @@ TICKET_TYPES = {
         "description": "Demande partenariat",
         "prefix": "partenariat",
         "color": 0x9B59B6,
-        "role_id": PARTENARIAT_ROLE_ID
+        "role_id": PARTENARIAT_ROLE_ID,
+        "category_id": PARTENARIAT_CATEGORY_ID
     },
     "autre": {
         "label": "Autre",
@@ -56,7 +59,8 @@ TICKET_TYPES = {
         "description": "Autre demande",
         "prefix": "autre",
         "color": 0xE67E22,
-        "role_id": AUTRE_ROLE_ID
+        "role_id": AUTRE_ROLE_ID,
+        "category_id": AUTRE_CATEGORY_ID
     }
 }
 
