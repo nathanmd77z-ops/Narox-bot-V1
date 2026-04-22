@@ -157,10 +157,6 @@ def is_staff_for_ticket(member: discord.Member, ticket_type: str):
     return any(role.id == role_id for role in member.roles)
 
 
-def is_ticket_channel(channel: discord.abc.GuildChannel) -> bool:
-    return isinstance(channel, discord.TextChannel) and bool(extract_ticket_meta(channel)["owner_id"])
-
-
 async def send_log(guild: discord.Guild, embed: discord.Embed, file: discord.File = None):
     channel = guild.get_channel(LOG_CHANNEL_ID)
     if channel and isinstance(channel, discord.TextChannel):
@@ -800,6 +796,13 @@ class TicketManagementView(discord.ui.View):
 @bot.event
 async def on_ready():
     try:
+        try:
+            await bot.load_extension("ban_unban")
+        except commands.ExtensionAlreadyLoaded:
+            pass
+        except Exception as e:
+            print(f"Erreur chargement ban_unban: {e}")
+
         synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
         print(f"{len(synced)} commande(s) synchronisée(s).")
