@@ -177,42 +177,44 @@ class TicketModal(discord.ui.Modal,title="Créer un ticket"):
                     ephemeral=True
                 )
 
-        data=TICKET_TYPES[self.ticket_key]
+       data = TICKET_TYPES[self.ticket_key]
 
-        category = guild.get_channel(data["category_id"])
-        staff_role=guild.get_role(data["role_id"])
+category = guild.get_channel(data["category_id"])
+staff_role = guild.get_role(data["role_id"])
 
-        overwrites={
-            guild.default_role:discord.PermissionOverwrite(
-                view_channel=False
-            ),
+if not category or not isinstance(category, discord.CategoryChannel):
+    return await interaction.response.send_message(
+        f"La catégorie Discord pour {data['label']} est introuvable.",
+        ephemeral=True
+    )
 
-            user:discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True
-            ),
+overwrites = {
+    guild.default_role: discord.PermissionOverwrite(
+        view_channel=False
+    ),
+    user: discord.PermissionOverwrite(
+        view_channel=True,
+        send_messages=True
+    ),
+    guild.me: discord.PermissionOverwrite(
+        view_channel=True,
+        send_messages=True,
+        manage_channels=True
+    )
+}
 
-            guild.me:discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                manage_channels=True
-            )
-        }
+if staff_role:
+    overwrites[staff_role] = discord.PermissionOverwrite(
+        view_channel=True,
+        send_messages=True
+    )
 
-        if staff_role:
-            overwrites[staff_role]=discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True
-            )
-
-        channel=await guild.create_text_channel(
-            name=sanitize(f"{data['prefix']}-{user.name}"),
-            category=category,
-            overwrites=overwrites,
-            topic=build_topic(
-                user.id,
-                self.ticket_key
-            )
+channel = await guild.create_text_channel(
+    name=sanitize(f"{data['prefix']}-{user.name}"),
+    category=category,
+    overwrites=overwrites,
+    topic=build_topic(user.id, self.ticket_key)
+)
         )
 
         tickets[str(user.id)] = {
