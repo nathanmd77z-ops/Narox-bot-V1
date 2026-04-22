@@ -15,25 +15,25 @@ TOKEN = os.getenv("TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 
-SUPPORT_ROLE_ID = int(os.getenv("SUPPORT_ROLE_ID"))
+probleme en jeux_ROLE_ID = int(os.getenv("probleme en jeux_ROLE_ID"))
 ACHAT_ROLE_ID = int(os.getenv("ACHAT_ROLE_ID"))
 PARTENARIAT_ROLE_ID = int(os.getenv("PARTENARIAT_ROLE_ID"))
 AUTRE_ROLE_ID = int(os.getenv("AUTRE_ROLE_ID"))
 
-SUPPORT_CATEGORY_ID = int(os.getenv("SUPPORT_CATEGORY_ID"))
+probleme en jeux_CATEGORY_ID = int(os.getenv("probleme en jeux_CATEGORY_ID"))
 ACHAT_CATEGORY_ID = int(os.getenv("ACHAT_CATEGORY_ID"))
 PARTENARIAT_CATEGORY_ID = int(os.getenv("PARTENARIAT_CATEGORY_ID"))
 AUTRE_CATEGORY_ID = int(os.getenv("AUTRE_CATEGORY_ID"))
 
 TICKET_TYPES = {
-    "support": {
-        "label": "Support",
+    "probleme en jeux": {
+        "label": "probleme en jeux",
         "emoji": "🛠️",
         "description": "Aide technique",
-        "prefix": "support",
+        "prefix": "probleme en jeux",
         "color": 0x3498DB,
-        "role_id": SUPPORT_ROLE_ID,
-        "category_id": SUPPORT_CATEGORY_ID,
+        "role_id": probleme en jeux_ROLE_ID,
+        "category_id": probleme en jeux_CATEGORY_ID,
     },
     "achat": {
         "label": "Achat",
@@ -679,7 +679,7 @@ class RemoveMemberModal(discord.ui.Modal, title="Retirer un membre"):
 class RenameTicketModal(discord.ui.Modal, title="Renommer le ticket"):
     new_name = discord.ui.TextInput(
         label="Nouveau nom",
-        placeholder="support-paiement",
+        placeholder="probleme en jeux-paiement",
         required=True,
         max_length=90
     )
@@ -830,7 +830,7 @@ async def panel(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple()
     )
-    embed.set_footer(text="Support • Achat • Partenariat • Autre")
+    embed.set_footer(text="probleme en jeux • Achat • Partenariat • Autre")
 
     await interaction.response.send_message(embed=embed, view=TicketPanelView())
 
