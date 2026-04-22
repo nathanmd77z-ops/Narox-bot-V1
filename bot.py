@@ -179,7 +179,7 @@ class TicketModal(discord.ui.Modal,title="Créer un ticket"):
 
         data=TICKET_TYPES[self.ticket_key]
 
-        category=guild.get_channel(TICKET_CATEGORY_ID)
+        category = guild.get_channel(data["category_id"])
         staff_role=guild.get_role(data["role_id"])
 
         overwrites={
