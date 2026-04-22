@@ -29,11 +29,11 @@ TICKET_TYPES = {
     "probleme en jeux": {
         "label": "probleme en jeux",
         "emoji": "🛠️",
-        "description": "Aide technique",
+        "description": "Aide ",
         "prefix": "probleme en jeux",
         "color": 0x3498DB,
-        "role_id": probleme en jeux_ROLE_ID,
-        "category_id": probleme en jeux_CATEGORY_ID,
+        "role_id":  PROBLEME_EN_JEUX_ROLE_ID,
+        "category_id": PROBLEME_EN_JEUX_CATEGORY_ID,
     },
     "achat": {
         "label": "Achat",
