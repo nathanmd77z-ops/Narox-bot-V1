@@ -8,13 +8,13 @@ load_dotenv()
 
 GUILD_ID = int(os.getenv("GUILD_ID"))
 LEAD_ROLE_ID = int(os.getenv("LEAD_ROLE_ID"))
-WYPE_CHANNEL_ID = int(os.getenv("WYPE_CHANNEL_ID"))
+WIPE_CHANNEL_ID = int(os.getenv("WIPE_CHANNEL_ID"))
 
 WYPE_ROLE_IDS = {
-    int(os.getenv("WYPE_ROLE_1_ID")),
-    int(os.getenv("WYPE_ROLE_2_ID")),
-    int(os.getenv("WYPE_ROLE_3_ID")),
-    int(os.getenv("WYPE_ROLE_4_ID")),
+    int(os.getenv("WIPE_ROLE_1_ID")),
+    int(os.getenv("WIPE_ROLE_2_ID")),
+    int(os.getenv("WIPE_ROLE_3_ID")),
+    int(os.getenv("WIPE_ROLE_4_ID")),
 }
 
 
@@ -22,30 +22,30 @@ def has_role(member: discord.Member, role_id: int) -> bool:
     return any(role.id == role_id for role in member.roles)
 
 
-def has_any_wype_role(member: discord.Member) -> bool:
-    return any(role.id in WYPE_ROLE_IDS for role in member.roles)
+def has_any_wipe_role(member: discord.Member) -> bool:
+    return any(role.id in WIPE_ROLE_IDS for role in member.roles)
 
 
-class WypeApproveView(discord.ui.View):
+class WipeApproveView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Valider le Wype",
+        label="Valider le Wipe",
         style=discord.ButtonStyle.danger,
         emoji="🧹",
-        custom_id="wype_approve_button"
+        custom_id="wipe_approve_button"
     )
-    async def approve_wype(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def approve_wipe(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             return await interaction.response.send_message(
                 "Commande invalide.",
                 ephemeral=True
             )
 
-        if not has_any_wype_role(interaction.user):
+        if not has_any_wipe_role(interaction.user):
             return await interaction.response.send_message(
-                "Tu n'as pas la permission de valider ce wype.",
+                "Tu n'as pas la permission de valider ce wipe.",
                 ephemeral=True
             )
 
@@ -74,7 +74,7 @@ class WypeApproveView(discord.ui.View):
                     requester_id = int(field.value)
 
         validated_embed = discord.Embed(
-            title="✅ Wype validé",
+            title="✅ Wipe validé",
             color=discord.Color.green()
         )
         validated_embed.add_field(name="ID unique", value=unique_id, inline=False)
@@ -85,7 +85,7 @@ class WypeApproveView(discord.ui.View):
         await interaction.message.edit(embed=validated_embed, view=None)
 
         await interaction.response.send_message(
-            f"Wype validé pour l'ID `{unique_id}`.",
+            f"Wipe validé pour l'ID `{unique_id}`.",
             ephemeral=True
         )
 
@@ -100,21 +100,21 @@ class WypeApproveView(discord.ui.View):
             if user_to_notify:
                 try:
                     await user_to_notify.send(
-                        f"✅ Ta demande de wype pour l'ID unique `{unique_id}` a été validée par {interaction.user}.\n"
+                        f"✅ Ta demande de wipe pour l'ID unique `{unique_id}` a été validée par {interaction.user}.\n"
                         f"Raison : {reason}"
                     )
                 except discord.Forbidden:
                     pass
 
 
-class WypeCommands(commands.Cog):
+class WipeCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="wype", description="Créer une demande de wype")
+    @app_commands.command(name="wipe", description="Créer une demande de wipe")
     @app_commands.describe(
         unique_id="ID unique en jeu",
-        raison="Raison du wype"
+        raison="Raison du wipe"
     )
     async def wype(self, interaction: discord.Interaction, unique_id: str, raison: str):
         if interaction.guild is None:
@@ -135,17 +135,17 @@ class WypeCommands(commands.Cog):
                 ephemeral=True
             )
 
-        wype_channel = interaction.guild.get_channel(WYPE_CHANNEL_ID)
-        if not wype_channel or not isinstance(wype_channel, discord.TextChannel):
+        wype_channel = interaction.guild.get_channel(WIPE_CHANNEL_ID)
+        if not wipe_channel or not isinstance(wipe_channel, discord.TextChannel):
             return await interaction.response.send_message(
-                "Le salon Wype est introuvable.",
+                "Le salon Wipe est introuvable.",
                 ephemeral=True
             )
 
-        role_mentions = " ".join(f"<@&{role_id}>" for role_id in WYPE_ROLE_IDS)
+        role_mentions = " ".join(f"<@&{role_id}>" for role_id in WiPE_ROLE_IDS)
 
         embed = discord.Embed(
-            title="🧹 Nouvelle demande de Wype",
+            title="🧹 Nouvelle demande de Wipe",
             color=discord.Color.orange()
         )
         embed.add_field(name="ID unique", value=unique_id, inline=False)
@@ -153,17 +153,17 @@ class WypeCommands(commands.Cog):
         embed.add_field(name="Demandé par", value=interaction.user.mention, inline=False)
         embed.add_field(name="Requester ID", value=str(interaction.user.id), inline=False)
 
-        await wype_channel.send(
+        await wipe_channel.send(
             content=role_mentions,
             embed=embed,
-            view=WypeApproveView()
+            view=WipeApproveView()
         )
 
         await interaction.response.send_message(
-            f"Ta demande de wype pour l'ID `{unique_id}` a été envoyée dans {wype_channel.mention}.",
+            f"Ta demande de wipe pour l'ID `{unique_id}` a été envoyée dans {wipe_channel.mention}.",
             ephemeral=True
         )
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(WypeCommands(bot), guild=discord.Object(id=GUILD_ID))
+    await bot.add_cog(WipeCommands(bot), guild=discord.Object(id=GUILD_ID))
