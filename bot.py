@@ -75,6 +75,7 @@ intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
 intents.messages = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -306,6 +307,10 @@ a {{
     return path
 
 
+# ---------------------------
+# Helpers interactions boutons
+# ---------------------------
+
 async def do_claim(interaction: discord.Interaction):
     guild = interaction.guild
     channel = interaction.channel
@@ -446,6 +451,117 @@ async def do_delete(interaction: discord.Interaction):
     await channel.delete()
 
 
+# ---------------------------
+# Helpers commandes !
+# ---------------------------
+
+async def ctx_claim(ctx: commands.Context):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
+
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
+
+    meta = extract_ticket_meta(ctx.channel)
+    if not meta["owner_id"]:
+        return await ctx.send("Ce salon n'est pas un ticket.")
+
+    if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
+        return await ctx.send("Tu n'as pas la permission de claim ce ticket.")
+
+    if meta["claimed_by"] is not None:
+        claimed_member = ctx.guild.get_member(meta["claimed_by"])
+        return await ctx.send(
+            f"Ticket déjà claim par {claimed_member.mention if claimed_member else meta['claimed_by']}."
+        )
+
+    await ctx.channel.edit(topic=build_topic(meta["owner_id"], meta["ticket_type"], ctx.author.id))
+    await ctx.send(f"{ctx.author.mention} a claim ce ticket.")
+
+
+async def ctx_unclaim(ctx: commands.Context):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
+
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
+
+    meta = extract_ticket_meta(ctx.channel)
+    if not meta["owner_id"]:
+        return await ctx.send("Ce salon n'est pas un ticket.")
+
+    if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
+        return await ctx.send("Tu n'as pas la permission de unclaim ce ticket.")
+
+    if meta["claimed_by"] is None:
+        return await ctx.send("Ce ticket n'est pas claim.")
+
+    if meta["claimed_by"] != ctx.author.id:
+        return await ctx.send("Seule la personne qui a claim peut faire unclaim.")
+
+    await ctx.channel.edit(topic=build_topic(meta["owner_id"], meta["ticket_type"], None))
+    await ctx.send(f"{ctx.author.mention} a unclaim ce ticket.")
+
+
+async def ctx_delete(ctx: commands.Context):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
+
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
+
+    meta = extract_ticket_meta(ctx.channel)
+    if not meta["owner_id"]:
+        return await ctx.send("Ce salon n'est pas un ticket.")
+
+    ticket_type = meta["ticket_type"]
+    is_owner = ctx.author.id == meta["owner_id"]
+    is_staff = is_staff_for_ticket(ctx.author, ticket_type)
+
+    if not (is_owner or is_staff):
+        return await ctx.send("Tu n'as pas la permission de supprimer ce ticket.")
+
+    owner = ctx.guild.get_member(meta["owner_id"]) if meta["owner_id"] else None
+
+    await ctx.send("Suppression du ticket en cours...")
+
+    transcript_path = await generate_transcript_html(ctx.channel)
+    transcript_file = discord.File(transcript_path, filename=os.path.basename(transcript_path))
+
+    embed = discord.Embed(
+        title="Ticket supprimé",
+        description=f"{ctx.author.mention} a supprimé le ticket `{ctx.channel.name}`",
+        color=discord.Color.red()
+    )
+    if owner:
+        embed.add_field(name="Créé par", value=f"{owner} (`{owner.id}`)", inline=False)
+    if ticket_type in TICKET_TYPES:
+        embed.add_field(name="Catégorie", value=TICKET_TYPES[ticket_type]["label"], inline=True)
+
+    claimed_member = ctx.guild.get_member(meta["claimed_by"]) if meta["claimed_by"] else None
+    embed.add_field(
+        name="Claim par",
+        value=claimed_member.mention if claimed_member else "Personne",
+        inline=True
+    )
+
+    await send_log(ctx.guild, embed, transcript_file)
+
+    tickets_db = load_tickets()
+    owner_key = str(meta["owner_id"]) if meta["owner_id"] else None
+    if owner_key and owner_key in tickets_db:
+        if tickets_db[owner_key].get("channel_id") == ctx.channel.id:
+            del tickets_db[owner_key]
+            save_tickets(tickets_db)
+
+    await asyncio.sleep(2)
+    await ctx.channel.delete()
+
+
+# ---------------------------
+# Modals
+# ---------------------------
+
 class TicketReasonModal(discord.ui.Modal, title="Ouvrir un ticket"):
     reason = discord.ui.TextInput(
         label="Décris ta demande",
@@ -544,7 +660,7 @@ class TicketReasonModal(discord.ui.Modal, title="Ouvrir un ticket"):
             color=ticket_data["color"]
         )
         embed.add_field(name="Créé par", value=f"{user.mention} (`{user.id}`)", inline=False)
-        embed.set_footer(text="Utilise les boutons ou les slash commands du ticket.")
+        embed.set_footer(text="Utilise les boutons ou les commandes ! du ticket.")
 
         ping = f"{user.mention}"
         if ticket_role:
@@ -701,6 +817,10 @@ class RenameTicketModal(discord.ui.Modal, title="Renommer le ticket"):
         await interaction.response.send_message(f"Ticket renommé : `{old_name}` → `{new_name}`")
 
 
+# ---------------------------
+# Select / Views
+# ---------------------------
+
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = []
@@ -793,6 +913,10 @@ class TicketManagementView(discord.ui.View):
         await do_delete(interaction)
 
 
+# ---------------------------
+# Events
+# ---------------------------
+
 @bot.event
 async def on_ready():
     try:
@@ -810,53 +934,51 @@ async def on_ready():
         except Exception as e:
             print(f"Erreur chargement clear_commands: {e}")
 
-        synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
-        print(f"{len(synced)} commande(s) synchronisée(s).")
     except Exception as e:
-        print(f"Erreur sync: {e}")
+        print(f"Erreur on_ready: {e}")
 
     bot.add_view(TicketPanelView())
     bot.add_view(TicketManagementView())
 
 
-@bot.tree.command(name="panel", description="Envoyer le panneau de tickets", guild=discord.Object(id=GUILD_ID))
-async def panel(interaction: discord.Interaction):
+# ---------------------------
+# Commandes !
+# ---------------------------
+
+@bot.command(name="panel")
+async def panel(ctx: commands.Context):
     embed = discord.Embed(
-        title="🎫 Centre de tickets",
+        title="🎫 Centre de support",
         description=(
-            "Choisis la catégorie correspondant à ta demande.\n\n"
+            "Sélectionne le type de ticket que tu veux ouvrir.\n\n"
             "Un salon privé sera créé automatiquement."
         ),
         color=discord.Color.blurple()
     )
     embed.set_footer(text="Problème en jeux • Boutique • RC Staff • Bug")
+    await ctx.send(embed=embed, view=TicketPanelView())
 
-    await interaction.response.send_message(embed=embed, view=TicketPanelView())
 
+@bot.command(name="ticketinfo")
+async def ticketinfo(ctx: commands.Context):
+    if ctx.guild is None or not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
 
-@bot.tree.command(name="ticket-info", description="Voir les informations du ticket", guild=discord.Object(id=GUILD_ID))
-async def ticket_info(interaction: discord.Interaction):
-    guild = interaction.guild
-    channel = interaction.channel
-
-    if guild is None or not isinstance(channel, discord.TextChannel):
-        return await interaction.response.send_message("Salon invalide.", ephemeral=True)
-
-    meta = extract_ticket_meta(channel)
+    meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await interaction.response.send_message("Ce salon n'est pas un ticket.", ephemeral=True)
+        return await ctx.send("Ce salon n'est pas un ticket.")
 
-    owner = guild.get_member(meta["owner_id"])
-    claimed = guild.get_member(meta["claimed_by"]) if meta["claimed_by"] else None
+    owner = ctx.guild.get_member(meta["owner_id"])
+    claimed = ctx.guild.get_member(meta["claimed_by"]) if meta["claimed_by"] else None
     ticket_type = meta["ticket_type"]
-    role = get_ticket_role(guild, ticket_type)
+    role = get_ticket_role(ctx.guild, ticket_type)
 
     embed = discord.Embed(
         title="Informations du ticket",
         color=discord.Color.blurple()
     )
-    embed.add_field(name="Salon", value=channel.mention, inline=False)
+    embed.add_field(name="Salon", value=ctx.channel.mention, inline=False)
     embed.add_field(name="Créé par", value=owner.mention if owner else f"`{meta['owner_id']}`", inline=False)
     embed.add_field(
         name="Catégorie",
@@ -874,43 +996,40 @@ async def ticket_info(interaction: discord.Interaction):
         inline=True
     )
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await ctx.send(embed=embed)
 
 
-@bot.tree.command(name="claim", description="Claim le ticket actuel", guild=discord.Object(id=GUILD_ID))
-async def claim(interaction: discord.Interaction):
-    await do_claim(interaction)
+@bot.command(name="claim")
+async def claim(ctx: commands.Context):
+    await ctx_claim(ctx)
 
 
-@bot.tree.command(name="unclaim", description="Libère le ticket actuel", guild=discord.Object(id=GUILD_ID))
-async def unclaim(interaction: discord.Interaction):
-    await do_unclaim(interaction)
+@bot.command(name="unclaim")
+async def unclaim(ctx: commands.Context):
+    await ctx_unclaim(ctx)
 
 
-@bot.tree.command(name="delete", description="Supprime le ticket actuel", guild=discord.Object(id=GUILD_ID))
-async def delete(interaction: discord.Interaction):
-    await do_delete(interaction)
+@bot.command(name="delete")
+async def delete(ctx: commands.Context):
+    await ctx_delete(ctx)
 
 
-@bot.tree.command(name="add", description="Ajouter un membre au ticket", guild=discord.Object(id=GUILD_ID))
-async def add(interaction: discord.Interaction, membre: discord.Member):
-    guild = interaction.guild
-    channel = interaction.channel
+@bot.command(name="add")
+async def add(ctx: commands.Context, membre: discord.Member):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
 
-    if guild is None or not isinstance(channel, discord.TextChannel):
-        return await interaction.response.send_message("Salon invalide.", ephemeral=True)
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
 
-    meta = extract_ticket_meta(channel)
+    meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await interaction.response.send_message("Ce salon n'est pas un ticket.", ephemeral=True)
+        return await ctx.send("Ce salon n'est pas un ticket.")
 
-    if not is_staff_for_ticket(interaction.user, meta["ticket_type"]):
-        return await interaction.response.send_message(
-            "Tu n'as pas la permission d'ajouter un membre.",
-            ephemeral=True
-        )
+    if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
+        return await ctx.send("Tu n'as pas la permission d'ajouter un membre.")
 
-    await channel.set_permissions(
+    await ctx.channel.set_permissions(
         membre,
         view_channel=True,
         send_messages=True,
@@ -919,58 +1038,50 @@ async def add(interaction: discord.Interaction, membre: discord.Member):
         embed_links=True
     )
 
-    await interaction.response.send_message(f"{membre.mention} a été ajouté au ticket.")
+    await ctx.send(f"{membre.mention} a été ajouté au ticket.")
 
 
-@bot.tree.command(name="remove", description="Retirer un membre du ticket", guild=discord.Object(id=GUILD_ID))
-async def remove(interaction: discord.Interaction, membre: discord.Member):
-    guild = interaction.guild
-    channel = interaction.channel
+@bot.command(name="remove")
+async def remove(ctx: commands.Context, membre: discord.Member):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
 
-    if guild is None or not isinstance(channel, discord.TextChannel):
-        return await interaction.response.send_message("Salon invalide.", ephemeral=True)
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
 
-    meta = extract_ticket_meta(channel)
+    meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await interaction.response.send_message("Ce salon n'est pas un ticket.", ephemeral=True)
+        return await ctx.send("Ce salon n'est pas un ticket.")
 
-    if not is_staff_for_ticket(interaction.user, meta["ticket_type"]):
-        return await interaction.response.send_message(
-            "Tu n'as pas la permission de retirer un membre.",
-            ephemeral=True
-        )
+    if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
+        return await ctx.send("Tu n'as pas la permission de retirer un membre.")
 
     if membre.id == meta["owner_id"]:
-        return await interaction.response.send_message(
-            "Impossible de retirer le créateur du ticket.",
-            ephemeral=True
-        )
+        return await ctx.send("Impossible de retirer le créateur du ticket.")
 
-    await channel.set_permissions(membre, overwrite=None)
-    await interaction.response.send_message(f"{membre.mention} a été retiré du ticket.")
+    await ctx.channel.set_permissions(membre, overwrite=None)
+    await ctx.send(f"{membre.mention} a été retiré du ticket.")
 
 
-@bot.tree.command(name="rename", description="Renommer le ticket actuel", guild=discord.Object(id=GUILD_ID))
-async def rename(interaction: discord.Interaction, nom: str):
-    channel = interaction.channel
+@bot.command(name="rename")
+async def rename(ctx: commands.Context, *, nom: str):
+    if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+        return await ctx.send("Commande invalide.")
 
-    if not isinstance(channel, discord.TextChannel):
-        return await interaction.response.send_message("Salon invalide.", ephemeral=True)
+    if not isinstance(ctx.channel, discord.TextChannel):
+        return await ctx.send("Salon invalide.")
 
-    meta = extract_ticket_meta(channel)
+    meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await interaction.response.send_message("Ce salon n'est pas un ticket.", ephemeral=True)
+        return await ctx.send("Ce salon n'est pas un ticket.")
 
-    if not is_staff_for_ticket(interaction.user, meta["ticket_type"]):
-        return await interaction.response.send_message(
-            "Tu n'as pas la permission de renommer ce ticket.",
-            ephemeral=True
-        )
+    if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
+        return await ctx.send("Tu n'as pas la permission de renommer ce ticket.")
 
-    old_name = channel.name
+    old_name = ctx.channel.name
     new_name = sanitize_channel_name(nom)
-    await channel.edit(name=new_name)
-    await interaction.response.send_message(f"Ticket renommé : `{old_name}` → `{new_name}`")
+    await ctx.channel.edit(name=new_name)
+    await ctx.send(f"Ticket renommé : `{old_name}` → `{new_name}`")
 
 
 bot.run(TOKEN)
