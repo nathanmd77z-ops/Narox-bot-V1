@@ -101,7 +101,7 @@ def format_dt(dt: datetime) -> str:
 
 def sanitize_channel_name(name: str) -> str:
     name = name.lower()
-    name = re.sub(r"[^a-z0-9\-]", "-", name)
+    name = re.sub(r"[^a-z0-9\\-]", "-", name)
     name = re.sub(r"-+", "-", name).strip("-")
     return name[:95] if name else "ticket"
 
@@ -937,16 +937,15 @@ async def on_ready():
             print(f"Erreur chargement clear_commands: {e}")
 
         try:
-            await bot.load_extension("wype_commands")
+            await bot.load_extension("wipe_commands")
         except commands.ExtensionAlreadyLoaded:
             pass
         except Exception as e:
-            print(f"Erreur chargement wype_commands: {e}")
+            print(f"Erreur chargement wipe_commands: {e}")
 
         synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
         print(f"{len(synced)} commande(s) slash synchronisée(s).")
-
     except Exception as e:
         print(f"Erreur on_ready: {e}")
 
@@ -954,10 +953,11 @@ async def on_ready():
     bot.add_view(TicketManagementView())
 
     try:
-        from wype_commands import WypeApproveView
-        bot.add_view(WypeApproveView())
+        from wipe_commands import WipeApproveView
+        bot.add_view(WipeApproveView())
     except Exception as e:
-        print(f"Erreur ajout vue WypeApproveView: {e}")
+        print(f"Erreur ajout vue WipeApproveView: {e}")
+
 
 @bot.command(name="panel")
 async def panel(ctx: commands.Context):
