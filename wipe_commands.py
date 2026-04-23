@@ -6,15 +6,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GUILD_ID = int(os.getenv("GUILD_ID"))
-LEAD_ROLE_ID = int(os.getenv("LEAD_ROLE_ID"))
-WIPE_CHANNEL_ID = int(os.getenv("WIPE_CHANNEL_ID"))
+
+def get_required_int(name: str) -> int:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        raise ValueError(f"Variable manquante : {name}")
+    return int(value)
+
+
+GUILD_ID = get_required_int("GUILD_ID")
+LEAD_ROLE_ID = get_required_int("LEAD_ROLE_ID")
+WIPE_CHANNEL_ID = get_required_int("WIPE_CHANNEL_ID")
 
 WIPE_ROLE_IDS = {
-    int(os.getenv("WIPE_ROLE_1_ID")),
-    int(os.getenv("WIPE_ROLE_2_ID")),
-    int(os.getenv("WIPE_ROLE_3_ID")),
-    int(os.getenv("WIPE_ROLE_4_ID")),
+    get_required_int("WIPE_ROLE_1_ID"),
+    get_required_int("WIPE_ROLE_2_ID"),
+    get_required_int("WIPE_ROLE_3_ID"),
+    get_required_int("WIPE_ROLE_4_ID"),
 }
 
 
@@ -138,11 +146,11 @@ class WipeCommands(commands.Cog):
         wipe_channel = interaction.guild.get_channel(WIPE_CHANNEL_ID)
         if not wipe_channel or not isinstance(wipe_channel, discord.TextChannel):
             return await interaction.response.send_message(
-                "Le salon Wipe est introuvable.",
+                "Le salon wipe est introuvable.",
                 ephemeral=True
             )
 
-        role_mentions = " ".join(f"<@&{role_id}>" for role_id in WiPE_ROLE_IDS)
+        role_mentions = " ".join(f"<@&{role_id}>" for role_id in WIPE_ROLE_IDS)
 
         embed = discord.Embed(
             title="🧹 Nouvelle demande de Wipe",
