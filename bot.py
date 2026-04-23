@@ -830,7 +830,7 @@ async def panel(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple()
     )
-    embed.set_footer(text="Support • Achat • Partenariat • Autre")
+    embed.set_footer(text="Problème en jeux • Boutique • RC Staff • Bug")
 
     await interaction.response.send_message(embed=embed, view=TicketPanelView())
 
