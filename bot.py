@@ -946,10 +946,10 @@ async def on_ready():
         synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
         print(f"{len(synced)} commande(s) slash synchronisée(s).")
+
     except Exception as e:
         print(f"Erreur on_ready: {e}")
 
-    bot.add_view(TicketPanelView())
     bot.add_view(TicketManagementView())
 
     try:
