@@ -1,10 +1,19 @@
 import os
 import discord
-from discord import app_commands
 from discord.ext import commands
 
-GUILD_ID = int(os.getenv("GUILD_ID"))
 FONDATEUR_ROLE_ID = int(os.getenv("FONDATEUR_ROLE_ID"))
+
+
+async def safe_delete_command_message(ctx: commands.Context):
+    try:
+        await ctx.message.delete()
+    except discord.Forbidden:
+        pass
+    except discord.NotFound:
+        pass
+    except Exception:
+        pass
 
 
 class ClearCommands(commands.Cog):
@@ -14,43 +23,27 @@ class ClearCommands(commands.Cog):
     def has_fondateur_role(self, member: discord.Member) -> bool:
         return any(role.id == FONDATEUR_ROLE_ID for role in member.roles)
 
-    @app_commands.command(name="clear", description="Supprimer un nombre précis de messages ou tout le salon")
-    @app_commands.describe(
-        mode="Nombre de messages à supprimer ou 'all' pour tout vider"
-    )
-    async def clear(self, interaction: discord.Interaction, mode: str):
-        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
-            return await interaction.response.send_message(
-                "Cette commande doit être utilisée dans un serveur.",
-                ephemeral=True
-            )
+    @commands.command(name="clear")
+    async def clear(self, ctx: commands.Context, mode: str):
+        await safe_delete_command_message(ctx)
 
-        if not isinstance(interaction.channel, discord.TextChannel):
-            return await interaction.response.send_message(
-                "Cette commande fonctionne seulement dans un salon texte.",
-                ephemeral=True
-            )
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            return await ctx.send("Cette commande doit être utilisée dans un serveur.", delete_after=5)
 
-        if not self.has_fondateur_role(interaction.user):
-            return await interaction.response.send_message(
-                "Seul le rôle Fondateur peut utiliser cette commande.",
-                ephemeral=True
-            )
+        if not isinstance(ctx.channel, discord.TextChannel):
+            return await ctx.send("Cette commande fonctionne seulement dans un salon texte.", delete_after=5)
 
-        bot_member = interaction.guild.me
+        if not self.has_fondateur_role(ctx.author):
+            return await ctx.send("Seul le rôle Fondateur peut utiliser cette commande.", delete_after=5)
+
+        bot_member = ctx.guild.me
         if bot_member is None or not bot_member.guild_permissions.manage_messages:
-            return await interaction.response.send_message(
-                "Le bot n'a pas la permission de gérer les messages.",
-                ephemeral=True
-            )
+            return await ctx.send("Le bot n'a pas la permission de gérer les messages.", delete_after=5)
 
-        channel = interaction.channel
+        channel = ctx.channel
 
         if mode.lower() == "all":
-            await interaction.response.send_message(
-                "Suppression de presque tous les messages récents du salon...",
-                ephemeral=True
-            )
+            info_msg = await ctx.send("Suppression de presque tous les messages récents du salon...")
 
             deleted_total = 0
 
@@ -62,49 +55,47 @@ class ClearCommands(commands.Cog):
                 if len(deleted) < 100:
                     break
 
+            try:
+                await info_msg.delete()
+            except Exception:
+                pass
+
             await channel.send(
-                f"🧹 Salon nettoyé par {interaction.user.mention} — {deleted_total} message(s) supprimé(s).",
+                f"🧹 Salon nettoyé par {ctx.author.mention} — {deleted_total} message(s) supprimé(s).",
                 delete_after=5
             )
             return
 
         if not mode.isdigit():
-            return await interaction.response.send_message(
-                "Tu dois mettre un nombre ou `all`.",
-                ephemeral=True
-            )
+            return await ctx.send("Tu dois mettre un nombre ou `all`.", delete_after=5)
 
         amount = int(mode)
 
         if amount <= 0:
-            return await interaction.response.send_message(
-                "Le nombre doit être supérieur à 0.",
-                ephemeral=True
-            )
+            return await ctx.send("Le nombre doit être supérieur à 0.", delete_after=5)
 
         if amount > 100:
-            return await interaction.response.send_message(
-                "Tu peux supprimer au maximum 100 messages d'un coup. Utilise `all` pour vider le salon.",
-                ephemeral=True
+            return await ctx.send(
+                "Tu peux supprimer au maximum 100 messages d'un coup. Utilise `!clear all` pour vider le salon.",
+                delete_after=5
             )
-
-        await interaction.response.defer(ephemeral=True)
 
         deleted = await channel.purge(limit=amount)
 
-        await interaction.followup.send(
-            f"🧹 {len(deleted)} message(s) supprimé(s).",
-            ephemeral=True
+        await channel.send(
+            f"🧹 {ctx.author.mention} a supprimé {len(deleted)} message(s).",
+            delete_after=5
         )
 
-        try:
-            await channel.send(
-                f"🧹 {interaction.user.mention} a supprimé {len(deleted)} message(s).",
-                delete_after=5
-            )
-        except discord.Forbidden:
-            pass
+    @clear.error
+    async def clear_error(self, ctx: commands.Context, error):
+        await safe_delete_command_message(ctx)
+
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("Utilisation : `!clear 10` ou `!clear all`", delete_after=5)
+        else:
+            await ctx.send("Erreur lors de la commande clear.", delete_after=5)
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(ClearCommands(bot), guild=discord.Object(id=GUILD_ID))
+    await bot.add_cog(ClearCommands(bot))
