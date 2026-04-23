@@ -1,101 +1,70 @@
-import os
 import discord
-from discord import app_commands
 from discord.ext import commands
 
-GUILD_ID = int(os.getenv("GUILD_ID"))
+
+async def safe_delete_command_message(ctx: commands.Context):
+    try:
+        await ctx.message.delete()
+    except discord.Forbidden:
+        pass
+    except discord.NotFound:
+        pass
+    except Exception:
+        pass
 
 
 class BanUnban(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="ban", description="Bannir un membre du serveur")
-    @app_commands.describe(
-        membre="Le membre à bannir",
-        raison="Raison du bannissement"
-    )
-    async def ban(
-        self,
-        interaction: discord.Interaction,
-        membre: discord.Member,
-        raison: str = "Aucune raison fournie"
-    ):
-        if interaction.guild is None:
-            return await interaction.response.send_message(
-                "Cette commande doit être utilisée dans un serveur.",
-                ephemeral=True
-            )
+    @commands.command(name="ban")
+    @commands.has_permissions(ban_members=True)
+    async def ban(self, ctx: commands.Context, member: discord.Member, *, reason: str = "Aucune raison fournie"):
+        await safe_delete_command_message(ctx)
 
-        auteur = interaction.user
-        bot_member = interaction.guild.me
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            return await ctx.send("Commande invalide.", delete_after=5)
 
-        if not isinstance(auteur, discord.Member):
-            return await interaction.response.send_message(
-                "Impossible de vérifier tes permissions.",
-                ephemeral=True
-            )
-
+        bot_member = ctx.guild.me
         if bot_member is None:
-            return await interaction.response.send_message(
-                "Impossible de vérifier les permissions du bot.",
-                ephemeral=True
-            )
-
-        if not auteur.guild_permissions.ban_members:
-            return await interaction.response.send_message(
-                "Tu n'as pas la permission de bannir des membres.",
-                ephemeral=True
-            )
+            return await ctx.send("Impossible de vérifier les permissions du bot.", delete_after=5)
 
         if not bot_member.guild_permissions.ban_members:
-            return await interaction.response.send_message(
-                "Le bot n'a pas la permission de bannir des membres.",
-                ephemeral=True
-            )
+            return await ctx.send("Le bot n'a pas la permission de bannir des membres.", delete_after=5)
 
-        if membre.id == auteur.id:
-            return await interaction.response.send_message(
-                "Tu ne peux pas te bannir toi-même.",
-                ephemeral=True
-            )
+        if member.id == ctx.author.id:
+            return await ctx.send("Tu ne peux pas te bannir toi-même.", delete_after=5)
 
-        if membre.id == self.bot.user.id:
-            return await interaction.response.send_message(
-                "Je ne peux pas me bannir moi-même.",
-                ephemeral=True
-            )
+        if member.id == self.bot.user.id:
+            return await ctx.send("Je ne peux pas me bannir moi-même.", delete_after=5)
 
-        if interaction.guild.owner_id == membre.id:
-            return await interaction.response.send_message(
-                "Impossible de bannir le propriétaire du serveur.",
-                ephemeral=True
-            )
+        if ctx.guild.owner_id == member.id:
+            return await ctx.send("Impossible de bannir le propriétaire du serveur.", delete_after=5)
 
-        if auteur.top_role <= membre.top_role and interaction.guild.owner_id != auteur.id:
-            return await interaction.response.send_message(
+        if ctx.author.top_role <= member.top_role and ctx.guild.owner_id != ctx.author.id:
+            return await ctx.send(
                 "Tu ne peux pas bannir un membre qui a un rôle égal ou supérieur au tien.",
-                ephemeral=True
+                delete_after=5
             )
 
-        if bot_member.top_role <= membre.top_role:
-            return await interaction.response.send_message(
+        if bot_member.top_role <= member.top_role:
+            return await ctx.send(
                 "Je ne peux pas bannir ce membre car son rôle est égal ou supérieur au mien.",
-                ephemeral=True
+                delete_after=5
             )
 
         try:
             try:
-                await membre.send(
-                    f"Tu as été banni du serveur **{interaction.guild.name}**.\n"
-                    f"**Raison :** {raison}"
+                await member.send(
+                    f"Tu as été banni du serveur **{ctx.guild.name}**.\n"
+                    f"**Raison :** {reason}"
                 )
             except discord.Forbidden:
                 pass
 
-            await interaction.guild.ban(
-                membre,
-                reason=f"{raison} | Ban par {auteur}",
+            await ctx.guild.ban(
+                member,
+                reason=f"{reason} | Ban par {ctx.author}",
                 delete_message_days=0
             )
 
@@ -103,99 +72,50 @@ class BanUnban(commands.Cog):
                 title="🔨 Membre banni",
                 color=discord.Color.red()
             )
-            embed.add_field(name="Membre", value=f"{membre} (`{membre.id}`)", inline=False)
-            embed.add_field(name="Modérateur", value=f"{auteur.mention}", inline=False)
-            embed.add_field(name="Raison", value=raison, inline=False)
+            embed.add_field(name="Membre", value=f"{member} (`{member.id}`)", inline=False)
+            embed.add_field(name="Modérateur", value=f"{ctx.author.mention}", inline=False)
+            embed.add_field(name="Raison", value=reason, inline=False)
 
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
         except discord.Forbidden:
-            await interaction.response.send_message(
-                "Je n'ai pas réussi à bannir ce membre.",
-                ephemeral=True
-            )
+            await ctx.send("Je n'ai pas réussi à bannir ce membre.", delete_after=5)
         except Exception as e:
-            await interaction.response.send_message(
-                f"Erreur pendant le bannissement : `{e}`",
-                ephemeral=True
-            )
+            await ctx.send(f"Erreur pendant le bannissement : `{e}`", delete_after=5)
 
-    @app_commands.command(name="unban", description="Débannir un utilisateur via son ID")
-    @app_commands.describe(
-        user_id="ID de l'utilisateur à débannir",
-        raison="Raison du débannissement"
-    )
-    async def unban(
-        self,
-        interaction: discord.Interaction,
-        user_id: str,
-        raison: str = "Aucune raison fournie"
-    ):
-        if interaction.guild is None:
-            return await interaction.response.send_message(
-                "Cette commande doit être utilisée dans un serveur.",
-                ephemeral=True
-            )
+    @commands.command(name="unban")
+    @commands.has_permissions(ban_members=True)
+    async def unban(self, ctx: commands.Context, user_id: int, *, reason: str = "Aucune raison fournie"):
+        await safe_delete_command_message(ctx)
 
-        auteur = interaction.user
-        bot_member = interaction.guild.me
+        if ctx.guild is None or not isinstance(ctx.author, discord.Member):
+            return await ctx.send("Commande invalide.", delete_after=5)
 
-        if not isinstance(auteur, discord.Member):
-            return await interaction.response.send_message(
-                "Impossible de vérifier tes permissions.",
-                ephemeral=True
-            )
-
+        bot_member = ctx.guild.me
         if bot_member is None:
-            return await interaction.response.send_message(
-                "Impossible de vérifier les permissions du bot.",
-                ephemeral=True
-            )
-
-        if not auteur.guild_permissions.ban_members:
-            return await interaction.response.send_message(
-                "Tu n'as pas la permission de débannir des membres.",
-                ephemeral=True
-            )
+            return await ctx.send("Impossible de vérifier les permissions du bot.", delete_after=5)
 
         if not bot_member.guild_permissions.ban_members:
-            return await interaction.response.send_message(
-                "Le bot n'a pas la permission de débannir des membres.",
-                ephemeral=True
-            )
-
-        if not user_id.isdigit():
-            return await interaction.response.send_message(
-                "L'ID utilisateur est invalide.",
-                ephemeral=True
-            )
-
-        target_id = int(user_id)
+            return await ctx.send("Le bot n'a pas la permission de débannir des membres.", delete_after=5)
 
         try:
-            bans = [entry async for entry in interaction.guild.bans(limit=None)]
+            bans = [entry async for entry in ctx.guild.bans(limit=None)]
         except discord.Forbidden:
-            return await interaction.response.send_message(
-                "Je n'ai pas la permission de voir les bannissements.",
-                ephemeral=True
-            )
+            return await ctx.send("Je n'ai pas la permission de voir les bannissements.", delete_after=5)
 
         banned_entry = None
         for entry in bans:
-            if entry.user.id == target_id:
+            if entry.user.id == user_id:
                 banned_entry = entry
                 break
 
         if banned_entry is None:
-            return await interaction.response.send_message(
-                "Aucun utilisateur banni trouvé avec cet ID.",
-                ephemeral=True
-            )
+            return await ctx.send("Aucun utilisateur banni trouvé avec cet ID.", delete_after=5)
 
         try:
-            await interaction.guild.unban(
+            await ctx.guild.unban(
                 banned_entry.user,
-                reason=f"{raison} | Unban par {auteur}"
+                reason=f"{reason} | Unban par {ctx.author}"
             )
 
             embed = discord.Embed(
@@ -207,22 +127,42 @@ class BanUnban(commands.Cog):
                 value=f"{banned_entry.user} (`{banned_entry.user.id}`)",
                 inline=False
             )
-            embed.add_field(name="Modérateur", value=f"{auteur.mention}", inline=False)
-            embed.add_field(name="Raison", value=raison, inline=False)
+            embed.add_field(name="Modérateur", value=f"{ctx.author.mention}", inline=False)
+            embed.add_field(name="Raison", value=reason, inline=False)
 
-            await interaction.response.send_message(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
         except discord.Forbidden:
-            await interaction.response.send_message(
-                "Je n'ai pas réussi à débannir cet utilisateur.",
-                ephemeral=True
-            )
+            await ctx.send("Je n'ai pas réussi à débannir cet utilisateur.", delete_after=5)
         except Exception as e:
-            await interaction.response.send_message(
-                f"Erreur pendant le débannissement : `{e}`",
-                ephemeral=True
-            )
+            await ctx.send(f"Erreur pendant le débannissement : `{e}`", delete_after=5)
+
+    @ban.error
+    async def ban_error(self, ctx: commands.Context, error):
+        await safe_delete_command_message(ctx)
+
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("Tu n'as pas la permission de bannir des membres.", delete_after=5)
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.send("Membre introuvable.", delete_after=5)
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("Utilisation : `!ban @membre raison`", delete_after=5)
+        else:
+            await ctx.send("Erreur lors de la commande ban.", delete_after=5)
+
+    @unban.error
+    async def unban_error(self, ctx: commands.Context, error):
+        await safe_delete_command_message(ctx)
+
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("Tu n'as pas la permission de débannir des membres.", delete_after=5)
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send("L'ID fourni est invalide.", delete_after=5)
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("Utilisation : `!unban ID raison`", delete_after=5)
+        else:
+            await ctx.send("Erreur lors de la commande unban.", delete_after=5)
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(BanUnban(bot), guild=discord.Object(id=GUILD_ID))
+    await bot.add_cog(BanUnban(bot))
