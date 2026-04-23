@@ -936,12 +936,25 @@ async def on_ready():
         except Exception as e:
             print(f"Erreur chargement clear_commands: {e}")
 
+        try:
+            await bot.load_extension("wype_commands")
+        except commands.ExtensionAlreadyLoaded:
+            pass
+        except Exception as e:
+            print(f"Erreur chargement wype_commands: {e}")
+
         print(f"Connecté en tant que {bot.user}")
     except Exception as e:
         print(f"Erreur on_ready: {e}")
 
     bot.add_view(TicketPanelView())
     bot.add_view(TicketManagementView())
+
+    try:
+        from wype_commands import WypeApproveView
+        bot.add_view(WypeApproveView())
+    except Exception as e:
+        print(f"Erreur ajout vue WypeApproveView: {e}")
 
 
 @bot.command(name="panel")
