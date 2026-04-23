@@ -80,6 +80,17 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
+async def safe_delete_command_message(ctx: commands.Context):
+    try:
+        await ctx.message.delete()
+    except discord.Forbidden:
+        pass
+    except discord.NotFound:
+        pass
+    except Exception:
+        pass
+
+
 def now_utc():
     return datetime.now(timezone.utc)
 
@@ -307,10 +318,6 @@ a {{
     return path
 
 
-# ---------------------------
-# Helpers interactions boutons
-# ---------------------------
-
 async def do_claim(interaction: discord.Interaction):
     guild = interaction.guild
     channel = interaction.channel
@@ -451,79 +458,82 @@ async def do_delete(interaction: discord.Interaction):
     await channel.delete()
 
 
-# ---------------------------
-# Helpers commandes !
-# ---------------------------
-
 async def ctx_claim(ctx: commands.Context):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
-        return await ctx.send("Tu n'as pas la permission de claim ce ticket.")
+        return await ctx.send("Tu n'as pas la permission de claim ce ticket.", delete_after=5)
 
     if meta["claimed_by"] is not None:
         claimed_member = ctx.guild.get_member(meta["claimed_by"])
         return await ctx.send(
-            f"Ticket déjà claim par {claimed_member.mention if claimed_member else meta['claimed_by']}."
+            f"Ticket déjà claim par {claimed_member.mention if claimed_member else meta['claimed_by']}.",
+            delete_after=5
         )
 
     await ctx.channel.edit(topic=build_topic(meta["owner_id"], meta["ticket_type"], ctx.author.id))
-    await ctx.send(f"{ctx.author.mention} a claim ce ticket.")
+    await ctx.send(f"{ctx.author.mention} a claim ce ticket.", delete_after=5)
 
 
 async def ctx_unclaim(ctx: commands.Context):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
-        return await ctx.send("Tu n'as pas la permission de unclaim ce ticket.")
+        return await ctx.send("Tu n'as pas la permission de unclaim ce ticket.", delete_after=5)
 
     if meta["claimed_by"] is None:
-        return await ctx.send("Ce ticket n'est pas claim.")
+        return await ctx.send("Ce ticket n'est pas claim.", delete_after=5)
 
     if meta["claimed_by"] != ctx.author.id:
-        return await ctx.send("Seule la personne qui a claim peut faire unclaim.")
+        return await ctx.send("Seule la personne qui a claim peut faire unclaim.", delete_after=5)
 
     await ctx.channel.edit(topic=build_topic(meta["owner_id"], meta["ticket_type"], None))
-    await ctx.send(f"{ctx.author.mention} a unclaim ce ticket.")
+    await ctx.send(f"{ctx.author.mention} a unclaim ce ticket.", delete_after=5)
 
 
 async def ctx_delete(ctx: commands.Context):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     ticket_type = meta["ticket_type"]
     is_owner = ctx.author.id == meta["owner_id"]
     is_staff = is_staff_for_ticket(ctx.author, ticket_type)
 
     if not (is_owner or is_staff):
-        return await ctx.send("Tu n'as pas la permission de supprimer ce ticket.")
+        return await ctx.send("Tu n'as pas la permission de supprimer ce ticket.", delete_after=5)
 
     owner = ctx.guild.get_member(meta["owner_id"]) if meta["owner_id"] else None
 
-    await ctx.send("Suppression du ticket en cours...")
+    status_msg = await ctx.send("Suppression du ticket en cours...")
 
     transcript_path = await generate_transcript_html(ctx.channel)
     transcript_file = discord.File(transcript_path, filename=os.path.basename(transcript_path))
@@ -555,12 +565,12 @@ async def ctx_delete(ctx: commands.Context):
             save_tickets(tickets_db)
 
     await asyncio.sleep(2)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
     await ctx.channel.delete()
 
-
-# ---------------------------
-# Modals
-# ---------------------------
 
 class TicketReasonModal(discord.ui.Modal, title="Ouvrir un ticket"):
     reason = discord.ui.TextInput(
@@ -817,10 +827,6 @@ class RenameTicketModal(discord.ui.Modal, title="Renommer le ticket"):
         await interaction.response.send_message(f"Ticket renommé : `{old_name}` → `{new_name}`")
 
 
-# ---------------------------
-# Select / Views
-# ---------------------------
-
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = []
@@ -913,10 +919,6 @@ class TicketManagementView(discord.ui.View):
         await do_delete(interaction)
 
 
-# ---------------------------
-# Events
-# ---------------------------
-
 @bot.event
 async def on_ready():
     try:
@@ -942,12 +944,10 @@ async def on_ready():
     bot.add_view(TicketManagementView())
 
 
-# ---------------------------
-# Commandes !
-# ---------------------------
-
 @bot.command(name="panel")
 async def panel(ctx: commands.Context):
+    await safe_delete_command_message(ctx)
+
     embed = discord.Embed(
         title="🎫 Centre de support",
         description=(
@@ -962,12 +962,14 @@ async def panel(ctx: commands.Context):
 
 @bot.command(name="ticketinfo")
 async def ticketinfo(ctx: commands.Context):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     owner = ctx.guild.get_member(meta["owner_id"])
     claimed = ctx.guild.get_member(meta["claimed_by"]) if meta["claimed_by"] else None
@@ -996,7 +998,7 @@ async def ticketinfo(ctx: commands.Context):
         inline=True
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, delete_after=10)
 
 
 @bot.command(name="claim")
@@ -1016,18 +1018,20 @@ async def delete(ctx: commands.Context):
 
 @bot.command(name="add")
 async def add(ctx: commands.Context, membre: discord.Member):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
-        return await ctx.send("Tu n'as pas la permission d'ajouter un membre.")
+        return await ctx.send("Tu n'as pas la permission d'ajouter un membre.", delete_after=5)
 
     await ctx.channel.set_permissions(
         membre,
@@ -1038,50 +1042,54 @@ async def add(ctx: commands.Context, membre: discord.Member):
         embed_links=True
     )
 
-    await ctx.send(f"{membre.mention} a été ajouté au ticket.")
+    await ctx.send(f"{membre.mention} a été ajouté au ticket.", delete_after=5)
 
 
 @bot.command(name="remove")
 async def remove(ctx: commands.Context, membre: discord.Member):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
-        return await ctx.send("Tu n'as pas la permission de retirer un membre.")
+        return await ctx.send("Tu n'as pas la permission de retirer un membre.", delete_after=5)
 
     if membre.id == meta["owner_id"]:
-        return await ctx.send("Impossible de retirer le créateur du ticket.")
+        return await ctx.send("Impossible de retirer le créateur du ticket.", delete_after=5)
 
     await ctx.channel.set_permissions(membre, overwrite=None)
-    await ctx.send(f"{membre.mention} a été retiré du ticket.")
+    await ctx.send(f"{membre.mention} a été retiré du ticket.", delete_after=5)
 
 
 @bot.command(name="rename")
 async def rename(ctx: commands.Context, *, nom: str):
+    await safe_delete_command_message(ctx)
+
     if ctx.guild is None or not isinstance(ctx.author, discord.Member):
-        return await ctx.send("Commande invalide.")
+        return await ctx.send("Commande invalide.", delete_after=5)
 
     if not isinstance(ctx.channel, discord.TextChannel):
-        return await ctx.send("Salon invalide.")
+        return await ctx.send("Salon invalide.", delete_after=5)
 
     meta = extract_ticket_meta(ctx.channel)
     if not meta["owner_id"]:
-        return await ctx.send("Ce salon n'est pas un ticket.")
+        return await ctx.send("Ce salon n'est pas un ticket.", delete_after=5)
 
     if not is_staff_for_ticket(ctx.author, meta["ticket_type"]):
-        return await ctx.send("Tu n'as pas la permission de renommer ce ticket.")
+        return await ctx.send("Tu n'as pas la permission de renommer ce ticket.", delete_after=5)
 
     old_name = ctx.channel.name
     new_name = sanitize_channel_name(nom)
     await ctx.channel.edit(name=new_name)
-    await ctx.send(f"Ticket renommé : `{old_name}` → `{new_name}`")
+    await ctx.send(f"Ticket renommé : `{old_name}` → `{new_name}`", delete_after=5)
 
 
 bot.run(TOKEN)
