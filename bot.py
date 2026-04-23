@@ -943,7 +943,10 @@ async def on_ready():
         except Exception as e:
             print(f"Erreur chargement wype_commands: {e}")
 
+        synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
+        print(f"{len(synced)} commande(s) slash synchronisée(s).")
+
     except Exception as e:
         print(f"Erreur on_ready: {e}")
 
@@ -955,7 +958,6 @@ async def on_ready():
         bot.add_view(WypeApproveView())
     except Exception as e:
         print(f"Erreur ajout vue WypeApproveView: {e}")
-
 
 @bot.command(name="panel")
 async def panel(ctx: commands.Context):
