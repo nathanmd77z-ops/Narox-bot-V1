@@ -10,7 +10,7 @@ GUILD_ID = int(os.getenv("GUILD_ID"))
 LEAD_ROLE_ID = int(os.getenv("LEAD_ROLE_ID"))
 WIPE_CHANNEL_ID = int(os.getenv("WIPE_CHANNEL_ID"))
 
-WYPE_ROLE_IDS = {
+WIPE_ROLE_IDS = {
     int(os.getenv("WIPE_ROLE_1_ID")),
     int(os.getenv("WIPE_ROLE_2_ID")),
     int(os.getenv("WIPE_ROLE_3_ID")),
@@ -116,7 +116,7 @@ class WipeCommands(commands.Cog):
         unique_id="ID unique en jeu",
         raison="Raison du wipe"
     )
-    async def wype(self, interaction: discord.Interaction, unique_id: str, raison: str):
+    async def wipe(self, interaction: discord.Interaction, unique_id: str, raison: str):
         if interaction.guild is None:
             return await interaction.response.send_message(
                 "Cette commande doit être utilisée dans un serveur.",
@@ -135,7 +135,7 @@ class WipeCommands(commands.Cog):
                 ephemeral=True
             )
 
-        wype_channel = interaction.guild.get_channel(WIPE_CHANNEL_ID)
+        wipe_channel = interaction.guild.get_channel(WIPE_CHANNEL_ID)
         if not wipe_channel or not isinstance(wipe_channel, discord.TextChannel):
             return await interaction.response.send_message(
                 "Le salon Wipe est introuvable.",
