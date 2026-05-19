@@ -3,6 +3,8 @@ import re
 import json
 import html
 import asyncio
+from collections import defaultdict
+import time
 from datetime import datetime, timezone
 
 import discord
@@ -77,7 +79,41 @@ intents.members = True
 intents.messages = True
 intents.message_content = True
 
+
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ===== ANTISPAM =====
+user_messages = defaultdict(list)
+SPAM_LIMIT = 5
+TIME_WINDOW = 10
+TIMEOUT_MINUTES = 5
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    user_id = message.author.id
+    now = time.time()
+    user_messages[user_id].append(now)
+    user_messages[user_id] = [t for t in user_messages[user_id] if now - t < TIME_WINDOW]
+
+    if len(user_messages[user_id]) >= SPAM_LIMIT:
+        try:
+            await message.delete()
+        except:
+            pass
+        try:
+            until = discord.utils.utcnow() + __import__("datetime").timedelta(minutes=TIMEOUT_MINUTES)
+            await message.author.timeout(until, reason="Spam détecté")
+            warn = await message.channel.send(f"{message.author.mention} timeout {TIMEOUT_MINUTES} min pour spam.")
+            await asyncio.sleep(5)
+            await warn.delete()
+        except Exception as e:
+            print("Erreur antispam:", e)
+        return
+
+    await bot.process_commands(message)
 
 
 async def safe_delete_command_message(ctx: commands.Context):
