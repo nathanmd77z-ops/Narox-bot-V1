@@ -86,7 +86,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 user_messages = defaultdict(list)
 SPAM_LIMIT = 5
 TIME_WINDOW = 10
-TIMEOUT_MINUTES = 5
+TIMEOUT_MINUTES = 60
 
 @bot.event
 async def on_message(message):
