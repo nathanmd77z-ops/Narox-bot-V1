@@ -1,7 +1,11 @@
+import os
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
-AUTO_ROLE_ID = 1387990132669284352   # Mets ici l'ID du rôle
+load_dotenv()
+
+AUTO_ROLE_ID = int(os.getenv("AUTO_ROLE_ID"))
 
 class AutoRole(commands.Cog):
     def __init__(self, bot):
@@ -13,13 +17,20 @@ class AutoRole(commands.Cog):
 
         role = member.guild.get_role(AUTO_ROLE_ID)
 
-        if role:
-            try:
-                await member.add_roles(role)
-                print(f"Rôle ajouté à {member}")
+        if role is None:
+            print("Role introuvable")
+            return
 
-            except Exception as e:
-                print("Erreur :", e)
+        try:
+            await member.add_roles(
+                role,
+                reason="Role automatique"
+            )
+
+            print(f"Role ajouté à {member}")
+
+        except Exception as e:
+            print("Erreur:", e)
 
 
 async def setup(bot):
