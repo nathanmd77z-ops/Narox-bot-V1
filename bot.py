@@ -964,20 +964,30 @@ async def on_ready():
             pass
         except Exception as e:
             print(f"Erreur chargement ban_unban: {e}")
-
+        
+        
         try:
             await bot.load_extension("clear_commands")
         except commands.ExtensionAlreadyLoaded:
             pass
         except Exception as e:
             print(f"Erreur chargement clear_commands: {e}")
-
+        
+        
         try:
             await bot.load_extension("wipe_commands")
         except commands.ExtensionAlreadyLoaded:
             pass
         except Exception as e:
             print(f"Erreur chargement wipe_commands: {e}")
+        
+        
+        try:
+            await bot.load_extension("autorole")
+        except commands.ExtensionAlreadyLoaded:
+            pass
+        except Exception as e:
+            print(f"Erreur chargement autorole: {e}")
 
         synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Connecté en tant que {bot.user}")
